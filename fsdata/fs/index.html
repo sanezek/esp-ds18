@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, user-scalable=no">
+		<link rel="stylesheet" type="text/css" href="css/siimple.min.css">
+		<link rel="stylesheet" type="text/css" href="css/style.css">
+		<link rel="shortcut icon" href="img/favicon.png">
+		<title>HTTP Server</title>
+	</head>
+	<body>
+		<div class="grid main">
+			<h1>ESP8266 HTTP Server</h1>
+
+			<div id="status_box" class="alert alert-done">HTTP Server is up and running.</div>
+
+			<p>This is an example HTTP server with CGI and SSI support. The switch below will allow you to test CGI handler and turn
+			the blue LED on or off.</p>
+
+			<div class="cover" align="center">
+				<div class="onoffswitch">
+					<input type="checkbox" name="onoffswitch" class="onoffswitch-checkbox" id="led-switch" onclick="gpio();">
+					<label class="onoffswitch-label" for="led-switch">
+						<span class="onoffswitch-inner"></span>
+						<span class="onoffswitch-switch"></span>
+					</label>
+				</div>
+			</div>
+
+			<h1>Server Status</h1>
+			<table class="table table-striped">
+
+			</table>
+		</div>
+
+		<script>
+			var ws;
+			var retries;
+			var dv;
+			window.onload = function() {
+				wsOpen();
+			}
+			function setMsg(cls, text) {
+				sbox = document.getElementById('status_box');
+				sbox.className = "alert alert-" + cls;
+				sbox.innerHTML = text;
+				console.log(text);
+			}
+			function onMessage(evt) {
+				retries = 0;
+				console.log(evt.data);
+			}
+			function wsOpen() {
+				if (ws === undefined || ws.readyState != 0) {
+					if (retries)
+						setMsg("error", "WebSocket timeout, retrying..");
+					else
+						setMsg("info", "Opening WebSocket..");
+					ws = new WebSocket("ws://" + location.host);
+					ws.binaryType = 'arraybuffer';
+					ws.onopen = function(evt) { retries = 0; setMsg("done", "WebSocket is open."); };
+					ws.onerror = function(evt) { setMsg("error", "WebSocket error!"); };
+					ws.onmessage = function(evt) { onMessage(evt); };
+					retries = 0;
+				}
+			}
+			function wsWrite(data) {
+				if (ws.readyState == 3 || retries++ > 5)
+					wsOpen();
+				else if (ws.readyState == 1)
+					ws.send(data);
+			}
+			function gpio() {
+				if (document.getElementById('led-switch').checked)
+					wsWrite('E');
+				else
+					wsWrite('D');
+			}
+		</script>
+	</body>
+</html>
