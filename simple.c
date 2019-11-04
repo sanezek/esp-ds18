@@ -12,7 +12,7 @@
 #include "ds18b20/ds18b20.h"
 
 
-#define SENSOR_GPIO 13
+#define SENSOR_GPIO 12
 #define MAX_SENSORS 8
 #define RESCAN_INTERVAL 8
 #define LOOP_DELAY_MS 250

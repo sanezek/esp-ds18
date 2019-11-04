@@ -14,22 +14,22 @@
 
 			<div id="status_box" class="alert alert-done">HTTP Server is up and running.</div>
 
-			<p>This is an example HTTP server with CGI and SSI support. The switch below will allow you to test CGI handler and turn
-			the blue LED on or off.</p>
 
-			<div class="cover" align="center">
-				<div class="onoffswitch">
-					<input type="checkbox" name="onoffswitch" class="onoffswitch-checkbox" id="led-switch" onclick="gpio();">
-					<label class="onoffswitch-label" for="led-switch">
-						<span class="onoffswitch-inner"></span>
-						<span class="onoffswitch-switch"></span>
-					</label>
-				</div>
-			</div>
 
-			<h1>Server Status</h1>
-			<table class="table table-striped">
-
+			<h1>Temps</h1>
+			<table id="temp_table" class="table table-striped">
+				<tr>
+					<td><b>Uptime:</b></td>
+					<td><!--#uptime--> seconds</td>
+				</tr>
+				<tr>
+					<td><b>Free heap:</b></td>
+					<td><!--#heap--> bytes</td>
+				</tr>
+				<tr>
+					<td><b>LED state:</b></td>
+					<td id="ledState"><!--#led--></td>
+				</tr>
 			</table>
 		</div>
 
@@ -37,6 +37,7 @@
 			var ws;
 			var retries;
 			var dv;
+			var timerId;
 			window.onload = function() {
 				wsOpen();
 			}
@@ -49,8 +50,17 @@
 			function onMessage(evt) {
 				retries = 0;
 				console.log(evt.data);
+				var box = document.getElementById('temp_table');
+				var a = JSON.parse(evt.data);
+				var out = "";
+				for(i in a.sensors){
+					out+="<tr><td><b>"+i+"</b></td><td>"+a.sensors[i]+"</td></tr>";
+				}
+				console.log(out);
+				box.innerHTML = out;
 			}
 			function wsOpen() {
+				clearTimeout(timerId);
 				if (ws === undefined || ws.readyState != 0) {
 					if (retries)
 						setMsg("error", "WebSocket timeout, retrying..");
@@ -61,7 +71,9 @@
 					ws.onopen = function(evt) { retries = 0; setMsg("done", "WebSocket is open."); };
 					ws.onerror = function(evt) { setMsg("error", "WebSocket error!"); };
 					ws.onmessage = function(evt) { onMessage(evt); };
+					ws.onclose = function(evt) { clearTimeout(timerId); };
 					retries = 0;
+					timerId = setInterval(wsWrite,500,"A");
 				}
 			}
 			function wsWrite(data) {
