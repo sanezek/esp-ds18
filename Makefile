@@ -7,7 +7,7 @@ EXTRA_CFLAGS=-DLWIP_HTTPD_CGI=1 -DLWIP_HTTPD_SSI=1 -I./fsdata
 
 #Enable debugging
 #EXTRA_CFLAGS+=-DLWIP_DEBUG=1 -DHTTPD_DEBUG=LWIP_DBG_ON
-include ../../common.mk
+include /home/sanezek/esp-open-rtos/common.mk
 
 html:
 	@echo "Generating fsdata.."
