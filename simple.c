@@ -17,6 +17,7 @@
 #define RESCAN_INTERVAL 8
 #define LOOP_DELAY_MS 250
 
+QueueHandle_t tempqueue_json = NULL;
 QueueHandle_t tempqueue = NULL;
 
 typedef struct {
@@ -30,6 +31,7 @@ void temperature_task(void *pvParameters) {
     float temps[MAX_SENSORS];
     int sensor_count;
     char response[256];
+    tempStat tStat;
     // There is no special initialization required before using the ds18b20
     // routines.  However, we make sure that the internal pull-up resistor is
     // enabled on the GPIO pin so that one can connect up a sensor without
@@ -49,6 +51,7 @@ void temperature_task(void *pvParameters) {
         sensor_count = sensor_count;
         if (sensor_count < 1) {
             strcpy(response,"{\"sensor_count\":0}");
+            tStat.sensor_count = 0;
         } else {
             // printf("\n%d sensors detected:\n", sensor_count);
             // If there were more sensors found than we have space to handle,
@@ -67,6 +70,8 @@ void temperature_task(void *pvParameters) {
                 sensors_len = 0;
                 for (i = 0; i < sensor_count-1; i++){
                     strcpy(past_sensors,sensors);
+                    tStat.addrs[i] = addrs[i];
+                    tStat.temps[i] = temps[i];
                     addr0 = addrs[i] >> 32;
                     addr1 = addrs[i];
                     temp_c = temps[i];
@@ -76,6 +81,8 @@ void temperature_task(void *pvParameters) {
                   );
                   // printf("%i\n%s",sensors_len,sensors);
                 }
+                tStat.addrs[i] = addrs[i];
+                tStat.temps[i] = temps[i];
                 addr0 = addrs[i] >> 32;
                 addr1 = addrs[i];
                 temp_c = temps[i];
@@ -93,7 +100,9 @@ void temperature_task(void *pvParameters) {
                 // ds18b20_measure_and_read_multi operation already takes at
                 // least 750ms to run, so this is on top of that delay).
                 xQueueReset(tempqueue);
-                xQueueSend(tempqueue, &response,100);
+                xQueueSend(tempqueue, &tStat,100);
+                xQueueReset(tempqueue_json);
+                xQueueSend(tempqueue_json, &response,100);
                 vTaskDelay(LOOP_DELAY_MS / portTICK_PERIOD_MS);
             }
         }
@@ -107,7 +116,7 @@ void print_temperature_task(void *pvParameters)
     printf("Hello from task 2!\r\n");
     while(1) {
         char response[256];
-        if(xQueuePeek(tempqueue, &response, 1000)) {
+        if(xQueuePeek(tempqueue_json, &response, 1000)) {
             printf(response);
         }
         printf("\n");
@@ -119,21 +128,27 @@ void websocket_cb(struct tcp_pcb *pcb, uint8_t *data, u16_t data_len, uint8_t mo
 {
     printf("[websocket_callback]:\n%.*s\n", (int) data_len, (char*) data);
     printf("0\n");
-    char response[256];
+
     uint16_t val;
     int resp_len;
 
     switch (data[0]) {
         case 'A': // ADC
+            char response[256];
+            xQueuePeek(tempqueue_json, &response, 1000);
+            websocket_write(pcb, (unsigned char *) response, strlen(response), WS_TEXT_MODE);
+            break;
+        case 'B':
+            tempStat response;
             xQueuePeek(tempqueue, &response, 1000);
+            websocket_write(pcb, (unsigned char *) response, sizeof(tempStat), WS_BIN_MODE);
             break;
         default:
             printf("Unknown command\n");
             val = 0;
             break;
     }
-    printf("4\n");
-    websocket_write(pcb, (unsigned char *) response, strlen(response), WS_TEXT_MODE);
+
 }
 
 /**
@@ -168,7 +183,7 @@ void user_init(void)
     sdk_wifi_station_connect();
 
     printf("SDK version:%s\n", sdk_system_get_sdk_version());
-    tempqueue = xQueueCreate(1, sizeof(char[256]));
+    tempqueue_json = xQueueCreate(1, sizeof(char[256]));
     xTaskCreate(temperature_task, "tsk1", 512, NULL, 2, NULL);
     xTaskCreate(print_temperature_task, "tsk2", 256, NULL, 2, NULL);
     xTaskCreate(&httpd_task, "HTTP Daemon", 1024, NULL, 2, NULL);
